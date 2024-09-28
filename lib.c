@@ -37,30 +37,10 @@ int *convolve(int **input, int **kernel, int dimention) {
   return output;
 }
 
-// should be O(1)
-/*void readMnistImage(const char *filename, unsigned char *imageBuffer,*/
-/*                    int index) {*/
-/*  FILE *file = fopen(filename, "rb");*/
-/**/
-/*  // Skip the header (16 bytes)*/
-/*  fseek(file, index * IMAGE_SIZE, SEEK_SET);*/
-/**/
-/*  // Read one image (28x28) into the buffer*/
-/*  fread(imageBuffer, sizeof(unsigned char), IMAGE_SIZE, file);*/
-/**/
-/*  fclose(file);*/
-/*}*/
-
 int main() {
   const char *filename = "./t10k-images.idx3-ubyte";
   load_mnist(0);
-  /*for (int i = 0; i < 784; i++) {*/
-  /*  printf("%1.1f ", test_image[0][i]);*/
-  /*  if ((i + 1) % 28 == 0)*/
-  /*    putchar('\n');*/
-  /*}*/
-  /**/
-  print_mnist_pixel(test_image, 1);
+  print_mnist_pixel(train_image, 1);
   printf("\n"); // for nvim terminal
   return 1;
 }

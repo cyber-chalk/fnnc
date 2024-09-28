@@ -1,7 +1,5 @@
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 #define TRAIN_IMAGE "./data/train-images.idx3-ubyte"
@@ -94,21 +92,30 @@ void label_char2int(int num_data, unsigned char data_label_char[][1],
 //}
 //}
 //}
-// clang-format off
 /*
  * bool, 1 = test, 0 = train
  * */
 void load_mnist(int test) {
-    char *image_file = test ? TEST_IMAGE : TRAIN_IMAGE;
-    char *label_file = test ? TEST_LABEL : TRAIN_LABEL;
-    int num_data = test ? NUM_TEST : NUM_TRAIN;
+  if (test == 1) {
+    // Loading test data
+    readToArr(TEST_IMAGE, NUM_TEST, LEN_INFO_IMAGE, SIZE, test_image_char,
+              info_image);
+    image_char2double(NUM_TEST, test_image_char, test_image);
 
-    readToArr(image_file, num_data, LEN_INFO_IMAGE, SIZE, test ? test_image_char : train_image_char, info_image);
-    image_char2double(num_data, test ? test_image_char : train_image_char, test ? test_image : train_image);
-    readToArr(label_file, num_data, LEN_INFO_LABEL, 1, test ? test_label_char : train_label_char, info_label);
-    label_char2int(num_data, test ? test_label_char : train_label_char, test ? test_label : train_label);
-} // confusing and slightly hard to read
-// clang-format on
+    readToArr(TEST_LABEL, NUM_TEST, LEN_INFO_LABEL, 1, test_label_char,
+              info_label);
+    label_char2int(NUM_TEST, test_label_char, test_label);
+  } else {
+    // Loading training data
+    readToArr(TRAIN_IMAGE, NUM_TRAIN, LEN_INFO_IMAGE, SIZE, train_image_char,
+              info_image);
+    image_char2double(NUM_TRAIN, train_image_char, train_image);
+
+    readToArr(TRAIN_LABEL, NUM_TRAIN, LEN_INFO_LABEL, 1, train_label_char,
+              info_label);
+    label_char2int(NUM_TRAIN, train_label_char, train_label);
+  }
+}
 
 void print_mnist_pixel(double data_image[][SIZE], int num_data) {
   for (int i = 0; i < num_data; i++) {
