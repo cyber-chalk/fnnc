@@ -68,21 +68,62 @@ void readToArr(char *filename, int numData, int infoLen, int arrN,
   close(opened_fd);
 }
 
+void image_char2double(int num_data, unsigned char data_image_char[][SIZE],
+                       double data_image[][SIZE]) {
+  for (int i = 0; i < num_data; i++)
+    for (int j = 0; j < SIZE; j++)
+      data_image[i][j] = (double)data_image_char[i][j] / 255.0;
+}
+
+void label_char2int(int num_data, unsigned char data_label_char[][1],
+                    int data_label[]) {
+  for (int i = 0; i < num_data; i++)
+    data_label[i] = (int)data_label_char[i][0];
+}
+
+// void convertToDouble(int num_data, unsigned char data_char[][SIZE],
+//                      void *data_array, size_t typeSize, double divisor) {
+// for (int i = 0; i < num_data; i++) {
+//  for (int j = 0; j < SIZE; j++) {
+//   if (typeSize == sizeof(double)) {
+//    ((double *)data_array)[i * SIZE + j] =
+//       (double)data_char[i][j] / divisor;
+// } else if (typeSize == sizeof(int)) {
+//  ((int *)data_array)[i * SIZE + j] = (int)data_char[i][j];
+//}
+//}
+//}
+//}
+// clang-format off
 /*
- * bool
+ * bool, 1 = test, 0 = train
  * */
 void load_mnist(int test) {
-  if (test == 1) {
-    read_mnist_char(TEST_LABEL, NUM_TEST, LEN_INFO_LABEL, 1, test_label_char,
-                    info_label);
+    char *image_file = test ? TEST_IMAGE : TRAIN_IMAGE;
+    char *label_file = test ? TEST_LABEL : TRAIN_LABEL;
+    int num_data = test ? NUM_TEST : NUM_TRAIN;
 
-    read_mnist_char(TEST_IMAGE, NUM_TEST, LEN_INFO_IMAGE, SIZE, test_image_char,
-                    info_image);
+    readToArr(image_file, num_data, LEN_INFO_IMAGE, SIZE, test ? test_image_char : train_image_char, info_image);
+    image_char2double(num_data, test ? test_image_char : train_image_char, test ? test_image : train_image);
+    readToArr(label_file, num_data, LEN_INFO_LABEL, 1, test ? test_label_char : train_label_char, info_label);
+    label_char2int(num_data, test ? test_label_char : train_label_char, test ? test_label : train_label);
+} // confusing and slightly hard to read
+// clang-format on
 
-  } else {
-    read_mnist_char(TRAIN_IMAGE, NUM_TRAIN, LEN_INFO_IMAGE, SIZE,
-                    train_image_char, info_image);
-    read_mnist_char(TRAIN_LABEL, NUM_TRAIN, LEN_INFO_LABEL, 1, train_label_char,
-                    info_label);
+void print_mnist_pixel(double data_image[][SIZE], int num_data) {
+  for (int i = 0; i < num_data; i++) {
+    printf("image %d/%d\n", i + 1, num_data);
+    for (int j = 0; j < SIZE; j++) {
+      printf("%1.1f ", data_image[i][j]);
+      if ((j + 1) % 28 == 0)
+        putchar('\n');
+    }
+    putchar('\n');
+  }
+}
+
+void print_mnist_label(int data_label[], int num_data) {
+  for (int i = 0; i < num_data; i++) {
+    printf("label[%d]: %d\n", i, data_label[i]);
   }
 }

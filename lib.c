@@ -1,4 +1,4 @@
-#include "mnist.h" // may want to write my own because why not
+#include "./mnist2.h" // may want to write my own because why not
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
@@ -53,13 +53,14 @@ int *convolve(int **input, int **kernel, int dimention) {
 
 int main() {
   const char *filename = "./t10k-images.idx3-ubyte";
-  load_mnist();
+  load_mnist(0);
   /*for (int i = 0; i < 784; i++) {*/
   /*  printf("%1.1f ", test_image[0][i]);*/
   /*  if ((i + 1) % 28 == 0)*/
   /*    putchar('\n');*/
   /*}*/
   /**/
+  print_mnist_pixel(test_image, 1);
   printf("\n"); // for nvim terminal
   return 1;
 }
