@@ -7,19 +7,11 @@
 #define TEST_IMAGE "./data/t10k-images.idx3-ubyte"
 #define TEST_LABEL "./data/t10k-labels.idx1-ubyte"
 
-#define SIZE 784 // 28*28
-#define NUM_TRAIN 60000
-#define NUM_TEST 10000
+#define SIZE 784        // 28*28
+#define NUM_TRAIN 60000 // number of images (train)
+#define NUM_TEST 10000  // number of images (test)
 #define LEN_INFO_IMAGE 4
 #define LEN_INFO_LABEL 2
-
-#define MAX_IMAGESIZE 1280
-#define MAX_BRIGHTNESS 255
-#define MAX_FILENAME 256
-#define MAX_NUM_OF_IMAGES 1
-
-unsigned char image[MAX_NUM_OF_IMAGES][MAX_IMAGESIZE][MAX_IMAGESIZE];
-int width[MAX_NUM_OF_IMAGES], height[MAX_NUM_OF_IMAGES];
 
 int info_image[LEN_INFO_IMAGE];
 int info_label[LEN_INFO_LABEL];
@@ -28,7 +20,7 @@ unsigned char train_image_char[NUM_TRAIN][SIZE];
 unsigned char test_image_char[NUM_TEST][SIZE];
 unsigned char train_label_char[NUM_TRAIN][1];
 unsigned char test_label_char[NUM_TEST][1];
-
+// array of images (array of pixels/doubles)
 double train_image[NUM_TRAIN][SIZE];
 double test_image[NUM_TEST][SIZE];
 int train_label[NUM_TRAIN];
@@ -46,8 +38,9 @@ void FlipLong(unsigned char *ptr) {
   ptr[1] = ptr[2];
   ptr[2] = temp;
 }
-// avoid stack overflow (but should work)
-// also may want to change void | unsigned char (cant because two arrays)
+// more efficient to get array into unsigned char and then convert to double
+// Since double is 8 bytes and unsigned char is 1 byte, its more efficient to
+// have both
 void readToArr(char *filename, int numData, int infoLen, int arrN,
                unsigned char dataChar[][arrN], int infoArr[]) {
   int opened_fd = open(filename, O_RDONLY);
@@ -57,7 +50,7 @@ void readToArr(char *filename, int numData, int infoLen, int arrN,
   for (int i = 0; i < infoLen; i++) {
     unsigned char *ptr = (unsigned char *)(infoArr + i);
     FlipLong(ptr);
-    ptr += 4; // 4 = size of int
+    ptr += 4; // 4 = sizoef(int);
   }
 
   for (int i = 0; i < numData; i++) {
@@ -79,19 +72,6 @@ void label_char2int(int num_data, unsigned char data_label_char[][1],
     data_label[i] = (int)data_label_char[i][0];
 }
 
-// void convertToDouble(int num_data, unsigned char data_char[][SIZE],
-//                      void *data_array, size_t typeSize, double divisor) {
-// for (int i = 0; i < num_data; i++) {
-//  for (int j = 0; j < SIZE; j++) {
-//   if (typeSize == sizeof(double)) {
-//    ((double *)data_array)[i * SIZE + j] =
-//       (double)data_char[i][j] / divisor;
-// } else if (typeSize == sizeof(int)) {
-//  ((int *)data_array)[i * SIZE + j] = (int)data_char[i][j];
-//}
-//}
-//}
-//}
 /*
  * bool, 1 = test, 0 = train
  * */
@@ -126,6 +106,18 @@ void print_mnist_pixel(double data_image[][SIZE], int num_data) {
         putchar('\n');
     }
     putchar('\n');
+  }
+}
+
+double *getSingle(double data_image[][SIZE], int single) {
+  return data_image[single];
+}
+
+void printSingle(double *data_image) {
+  for (int i = 0; i < SIZE; i++) {
+    printf("%1.1f ", data_image[i]);
+    if ((i + 1) % 28 == 0)
+      putchar('\n');
   }
 }
 
