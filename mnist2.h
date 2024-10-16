@@ -41,7 +41,10 @@ void FlipLong(unsigned char *ptr) {
 // more efficient to get array into unsigned char and then convert to double
 // Since double is 8 bytes and unsigned char is 1 byte, its more efficient to
 // have both
-void readToArr(char *filename, int numData, int infoLen, int arrN,
+
+// filename, number of images, length of info, length of array, seek, array of
+// data, info arr
+void readToArr(char *filename, int numData, int infoLen, int arrN, int seekto,
                unsigned char dataChar[][arrN], int infoArr[]) {
   int opened_fd = open(filename, O_RDONLY);
   // basically just reads the size of the data into an array
@@ -53,12 +56,15 @@ void readToArr(char *filename, int numData, int infoLen, int arrN,
     ptr += 4; // 4 = sizoef(int);
   }
 
+  // Seek to the specified position (seekto) in the file to start reading
+  lseek(opened_fd, seekto * arrN * sizeof(unsigned char), SEEK_CUR);
+
   for (int i = 0; i < numData; i++) {
     read(opened_fd, dataChar[i], arrN * sizeof(unsigned char));
   }
   close(opened_fd);
 }
-
+// number of images, array of pixels, array of doubles
 void image_char2double(int num_data, unsigned char data_image_char[][SIZE],
                        double data_image[][SIZE]) {
   for (int i = 0; i < num_data; i++)
@@ -75,25 +81,30 @@ void label_char2int(int num_data, unsigned char data_label_char[][1],
 /*
  * bool, 1 = test, 0 = train
  * */
-void load_mnist(int test) {
+void load_mnist(int test, int seekto, int bSize, double images[bSize][SIZE],
+                int labels[bSize]) {
+
+  unsigned char temp_image_char[bSize][SIZE];
+  unsigned char temp_label_char[bSize][1];
+
   if (test == 1) {
-    // Loading test data
-    readToArr(TEST_IMAGE, NUM_TEST, LEN_INFO_IMAGE, SIZE, test_image_char,
-              info_image);
-    image_char2double(NUM_TEST, test_image_char, test_image);
+    // Test data, load all at once
+    readToArr(TEST_IMAGE, NUM_TEST, LEN_INFO_IMAGE, SIZE, seekto,
+              temp_image_char, info_image);
+    image_char2double(bSize, temp_image_char, images);
 
-    readToArr(TEST_LABEL, NUM_TEST, LEN_INFO_LABEL, 1, test_label_char,
+    readToArr(TEST_LABEL, NUM_TEST, LEN_INFO_LABEL, 1, seekto, temp_label_char,
               info_label);
-    label_char2int(NUM_TEST, test_label_char, test_label);
+    label_char2int(bSize, temp_label_char, labels);
   } else {
-    // Loading training data
-    readToArr(TRAIN_IMAGE, NUM_TRAIN, LEN_INFO_IMAGE, SIZE, train_image_char,
+    // Training data, process in batches
+    readToArr(TRAIN_IMAGE, bSize, LEN_INFO_IMAGE, SIZE, seekto, temp_image_char,
               info_image);
-    image_char2double(NUM_TRAIN, train_image_char, train_image);
+    image_char2double(bSize, temp_image_char, images);
 
-    readToArr(TRAIN_LABEL, NUM_TRAIN, LEN_INFO_LABEL, 1, train_label_char,
+    readToArr(TRAIN_LABEL, bSize, LEN_INFO_LABEL, 1, seekto, temp_label_char,
               info_label);
-    label_char2int(NUM_TRAIN, train_label_char, train_label);
+    label_char2int(bSize, temp_label_char, labels);
   }
 }
 

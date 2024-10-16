@@ -13,6 +13,21 @@
 // create reference on first layer (just on the activation) and then just modify
 // that one for the rest of the network
 
+typedef struct _layer {
+  union {
+    /* Full */
+    struct {
+    } full;
+
+    /* Conv */
+    struct {
+      int kernsize; /* kernel size (>0) */
+      int padding;  /* padding size */
+      int stride;   /* stride (>0) */
+    } conv;
+  };
+} Layer;
+
 // clang-format off
 int kernel[3][3] = {
     { 1, 1, 1 },
@@ -20,7 +35,6 @@ int kernel[3][3] = {
     { 1, 1, 1 } // delete later
 };
 // clang-format on
-// convolution on stack
 // come back to later
 void convolve(double *input, int kernel[3][3], int width, int height) {
   double temp[width * height]; // Temporary array to store the results
@@ -52,10 +66,22 @@ void convolve(double *input, int kernel[3][3], int width, int height) {
 }
 
 int main() {
-  load_mnist(0); // 0.48 mb on the stack
-  // run convole on train_image
-  // convolve(getSingle(train_image, 0), kernel, 28, 28);
-  printSingle(getSingle(train_image, 0));
-  printf("\n"); // for nvim terminal
+
+  int batchSize = 10;             // Define the size of the batch
+  double images[batchSize][SIZE]; // To store the batch of images
+  int labels[batchSize];          // To store the batch of labels
+
+  int seekto = 0; // Start from the first image in the dataset
+  int test = 0;   // Load training data (test=0)
+
+  // Load a batch of MNIST data
+  load_mnist(test, seekto, batchSize, images, labels);
+  seekto += batchSize;
+
+  // Print the batch of images and their corresponding labels
+  printf("Printing batch of images:\n");
+  print_mnist_pixel(images, batchSize); // Print the images
+  print_mnist_label(labels, batchSize); // Print the corresponding labels
+
   return 0;
-}
+};
