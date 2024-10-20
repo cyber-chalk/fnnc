@@ -13,19 +13,40 @@
 // create reference on first layer (just on the activation) and then just modify
 // that one for the rest of the network
 
-typedef struct _layer {
-  union {
-    /* Full */
-    struct {
-    } full;
+typedef enum _layerType { DENSE, CONV, POOL } LayerType;
 
-    /* Conv */
+typedef struct _layer {
+
+  int width, height; // dimentions of input/image
+  int nneurons;      // number of neurons
+  double *weights;   // weights for each neuron
+  double *biases;    // biases for each neuron
+  int nweights;
+  int nbiases;
+  /* for backpropagation
+    double *gradients;
+    double *uweights;  // updated weights
+    double * ubiases;
+  */
+  LayerType type;
+
+  union {
     struct {
-      int kernsize; /* kernel size (>0) */
-      int padding;  /* padding size */
-      int stride;   /* stride (>0) */
+      // No additional specific params, since fully connected layers mainly use
+      // nneurons
+    } dense;
+
+    struct {
+      int kernel_size;
+      int stride;
+      int padding;
     } conv;
-  };
+
+    struct {
+      int pool_size;
+      int stride;
+    } pool;
+  } params;
 } Layer;
 
 // clang-format off
