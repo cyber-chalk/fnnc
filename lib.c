@@ -10,80 +10,44 @@
 //  head -10 ~/2024S2_SProj5_Mnistcnn/data/t10k-images.idx3-ubyte | xxd -b --
 //  interesting command
 
-// create reference on first layer (just on the activation) and then just modify
-// that one for the rest of the network
+typedef struct _Layer {
+  double *weights, *biases;
+  double *weightM, *biasM; // momentum
 
-typedef enum _layerType { DENSE, CONV, POOL } LayerType;
-
-typedef struct _layer {
-
-  int width, height; // dimentions of input/image
-  int nneurons;      // number of neurons
-  double *weights;   // weights for each neuron
-  double *biases;    // biases for each neuron
-  int nweights;
-  int nbiases;
-  /* for backpropagation
-    double *gradients;
-    double *uweights;  // updated weights
-    double * ubiases;
-  */
-  LayerType type;
-
-  union {
-    struct {
-      // No additional specific params, since fully connected layers mainly use
-      // nneurons
-    } dense;
-
-    struct {
-      int kernel_size;
-      int stride;
-      int padding;
-    } conv;
-
-    struct {
-      int pool_size;
-      int stride;
-    } pool;
-  } params;
+  int nnodes; // number of nodes
+  struct _Layer *prevLayer;
 } Layer;
 
-// clang-format off
-int kernel[3][3] = {
-    { 1, 1, 1 },
-    { 1, 8, 1 },
-    { 1, 1, 1 } // delete later
-};
-// clang-format on
-// come back to later
-void convolve(double *input, int kernel[3][3], int width, int height) {
-  double temp[width * height]; // Temporary array to store the results
+typedef struct _Network {
+  Layer *hidden; // array on stack
+  int numLayers;
+  // Layer output;
+} Network;
 
-  int kSize = 3;
+void initLayer(Layer *layer, Layer *prev, int size) {
+  int prevNum = (prev == NULL) ? 784 : prev->nnodes;
+  int n = size * prevNum; // total number of weights, each input/previous
+                          // neuron is connected to each neuron in this layer
+  layer->weights = malloc(n * sizeof(double));
+  layer->biases = calloc(size, sizeof(double));
+  layer->weightM = calloc(n, sizeof(double));
+  layer->biasM = calloc(size, sizeof(double));
 
-  for (int i = 1; i < height - 1; i++) {
-    for (int j = 1; j < width - 1; j++) {
-      double sum = 0.0;
-
-      for (int ki = 0; ki < kSize; ki++) {
-        for (int kj = 0; kj < kSize; kj++) {
-          int image_i = i + ki - 1;
-          int image_j = j + kj - 1;
-          int image_index = image_i * width + image_j;
-          sum += input[image_index] * kernel[ki][kj];
-        }
-      }
-
-      int output_index = i * width + j;
-      temp[output_index] = sum;
-    }
+  // (double)rand() / (((double)(RAND_MAX) + 1) / 2); // [0, 2)
+  // https://www.baeldung.com/cs/ml-neural-network-weights
+  // https://medium.com/@shauryagoel/kaiming-he-initialization-a8d9ed0b5899
+  double stddev = sqrt(2.0 / prevNum); // stdev
+  for (int i = 0; i < n; i++) {
+    layer->weights[i] = ((double)rand() / RAND_MAX) * stddev -
+                        (stddev / 2); // uniform distribution
   }
+  layer->nnodes = size;
+  layer->prevLayer = prev;
+}
 
-  // Copy the temp array back into the input array
-  for (int i = 0; i < width * height; i++) {
-    input[i] = temp[i];
-  }
+void initNetwork(Network *net, int *nodes) {
+  // probably move to main
+  initLayer(net->hidden, NULL, 10); // first layer
 }
 
 int main() {
