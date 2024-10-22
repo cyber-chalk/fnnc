@@ -4,7 +4,7 @@
 # my stuff
 exec
 compile_flags.txt
-
+.vscode/
 # Object files
 *.o
 *.ko

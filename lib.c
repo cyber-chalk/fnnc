@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
 #define BATCH_SIZE 64               // change if not running on chromebook
-// TODO: add softmax
+// TODO: add softmax 
+// try to use stack allocation wherever possible https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
 //  head -10 ~/2024S2_SProj5_Mnistcnn/data/t10k-images.idx3-ubyte | xxd -b --
 //  interesting command
@@ -19,8 +20,8 @@ typedef struct _Layer {
 } Layer;
 
 typedef struct _Network {
-  Layer *hidden; // array on stack
   int numLayers;
+  Layer hidden[3]; // array of layers
   // Layer output;
 } Network;
 
@@ -47,11 +48,11 @@ void initLayer(Layer *layer, Layer *prev, int size) {
 
 void initNetwork(Network *net, int *nodes) {
   // probably move to main
-  initLayer(net->hidden, NULL, 10); // first layer
+ 
 }
 
 int main() {
-
+  srand(time(NULL));
   int batchSize = 10;             // Define the size of the batch
   double images[batchSize][SIZE]; // To store the batch of images
   int labels[batchSize];          // To store the batch of labels
@@ -67,6 +68,15 @@ int main() {
   printf("Printing batch of images:\n");
   print_mnist_pixel(images, batchSize); // Print the images
   print_mnist_label(labels, batchSize); // Print the corresponding labels
+
+  // maybe put into function?
+  Network net;
+  net.numLayers = 3;
+
+
+  initLayer(&net.hidden[0], NULL, 16); // first layer
+  for (int i = 1; i < net.numLayers; i++) 
+    initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
 
   return 0;
 };
