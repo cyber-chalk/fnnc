@@ -3,10 +3,13 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
 #define BATCH_SIZE 64               // change if not running on chromebook
-// TODO: add softmax 
-// try to use stack allocation wherever possible https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
+#define NUMLAYERS 3
+// TODO: add softmax
+// try to use stack allocation wherever possible
+// https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
 //  head -10 ~/2024S2_SProj5_Mnistcnn/data/t10k-images.idx3-ubyte | xxd -b --
 //  interesting command
@@ -20,7 +23,6 @@ typedef struct _Layer {
 } Layer;
 
 typedef struct _Network {
-  int numLayers;
   Layer hidden[3]; // array of layers
   // Layer output;
 } Network;
@@ -46,10 +48,19 @@ void initLayer(Layer *layer, Layer *prev, int size) {
   layer->prevLayer = prev;
 }
 
-void initNetwork(Network *net, int *nodes) {
-  // probably move to main
- 
+void forward(Layer *layer, double *input, double *output) {
+  // n * w + n * w ... + b
+  int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
+  for (int i = 0; i < inputSize; i++) {
+    output[i] = layer->biases[i];
+    for (int j = 0; i < inputSize; i++) {
+      output[i] += input[j] * layer->weights[i * inputSize + j]; // +j (i think)
+    }
+    output[i] = relu(output[i]);
+  }
 }
+
+// void back(Layer *layer, )
 
 int main() {
   srand(time(NULL));
@@ -71,11 +82,9 @@ int main() {
 
   // maybe put into function?
   Network net;
-  net.numLayers = 3;
-
 
   initLayer(&net.hidden[0], NULL, 16); // first layer
-  for (int i = 1; i < net.numLayers; i++) 
+  for (int i = 1; i < NUMLAYERS; i++)
     initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
 
   return 0;
