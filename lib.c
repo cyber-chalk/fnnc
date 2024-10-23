@@ -5,14 +5,35 @@
 #include <stdlib.h>
 #include <time.h>
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
-#define BATCH_SIZE 64               // change if not running on chromebook
+#define relu_derivative(x) (x > 0) ? 1 : 0
+#define BATCH_SIZE 64 // change if not running on chromebook
 #define NUMLAYERS 3
-// TODO: add softmax
+#define MOMENTUM 0.9
 // try to use stack allocation wherever possible
 // https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
 //  head -10 ~/2024S2_SProj5_Mnistcnn/data/t10k-images.idx3-ubyte | xxd -b --
 //  interesting command
+
+double expo(double y) {
+  if (y > 80)
+    y = 80; // limit prevents overflow in exp
+  return exp(y);
+}
+
+double Softmax(double x, double *Niz, int Iter) {
+  double Sum = 0;
+
+  // sum of exponentials
+  for (int i = 0; i < Iter; i++) {
+    Sum += expo(Niz[i]);
+  }
+
+  if (Sum == 0)
+    Sum = 0.001;
+
+  return (expo(x)) / Sum;
+}
 
 typedef struct _Layer {
   double *weights, *biases;
@@ -60,7 +81,49 @@ void forward(Layer *layer, double *input, double *output) {
   }
 }
 
-// void back(Layer *layer, )
+void back(Layer *layer, double *input, double *dInput, double *dOutput,
+          double learningRate) {
+  /* dinput/output: The gradient of the loss function with respect to the
+   * input/output of the current layer (i.e., the error from the next layer or
+   * the loss function). */
+  int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
+  if (dInput) {
+    for (int j = 0; j < inputSize; j++) {
+      dInput[j] = 0.0f; // maybe calloc
+      for (int i = 0; i < layer->nnodes; i++) {
+        dInput[j] += dOutput[i] * layer->weights[j * layer->nnodes + i];
+      }
+    }
+  }
+
+  // update weights and momentum foreach input-output connection
+  for (int j = 0; j < inputSize; j++) {
+    double in_j = input[j]; // Input node value
+    for (int i = 0; i < layer->nnodes; i++) {
+      double grad = dOutput[i] *
+                    in_j; // Gradient for weight between input[j] and output[i]
+
+      // weight momentum (momentum * prev momentum + learning rate *
+      // current gradient)
+      layer->weightM[j * layer->nnodes + i] =
+          MOMENTUM * layer->weightM[j * layer->nnodes + i] +
+          learningRate * grad;
+
+      // Update weights using momentum
+      layer->weights[j * layer->nnodes + i] -=
+          layer->weightM[j * layer->nnodes + i];
+    }
+  }
+
+  // update biases and their momentum
+  for (int i = 0; i < layer->nnodes; i++) {
+    // update bias momentum
+    layer->biasM[i] = MOMENTUM * layer->biasM[i] + learningRate * dOutput[i];
+
+    // update bias thru momentum
+    layer->biases[i] -= layer->biasM[i];
+  }
+}
 
 int main() {
   srand(time(NULL));
