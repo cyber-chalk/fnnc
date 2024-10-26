@@ -7,7 +7,7 @@
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
 #define relu_derivative(x) (x > 0) ? 1 : 0
 #define BATCH_SIZE 64 // change if not running on chromebook
-#define NUMLAYERS 3 // not including input layer
+#define NUMLAYERS 3   // not including input layer
 #define MOMENTUM 0.9
 // try to use stack allocation wherever possible
 // https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
@@ -21,7 +21,7 @@ double expo(double y) {
   return expo(y);
 }
 
-double Softmax(double x, double *Niz, int Iter) {
+double softmax(double x, double *Niz, int Iter) {
   double Sum = 0;
 
   // sum of exponentials
@@ -44,8 +44,8 @@ typedef struct _Layer {
 } Layer;
 
 typedef struct _Network {
-  Layer hidden[3]; // array of layers
-  // Layer output;
+  Layer hidden[NUMLAYERS]; // array of layers
+  // includes output, excludes input
 } Network;
 
 void initLayer(Layer *layer, Layer *prev, int size) {
@@ -60,7 +60,7 @@ void initLayer(Layer *layer, Layer *prev, int size) {
   // (double)rand() / (((double)(RAND_MAX) + 1) / 2); // [0, 2)
   // https://www.baeldung.com/cs/ml-neural-network-weights
   // https://medium.com/@shauryagoel/kaiming-he-initialization-a8d9ed0b5899
-  double stddev = sqrt((double) (2.0 / prevNum)); // stdev
+  double stddev = sqrt((double)(2.0 / prevNum)); // stdev
   for (int i = 0; i < n; i++) {
     layer->weights[i] = ((double)rand() / RAND_MAX) * stddev -
                         (stddev / 2); // uniform distribution
@@ -124,54 +124,91 @@ void back(Layer *layer, double *input, double *dInput, double *dOutput,
   }
 }
 
-void train(Network *net, double* image, double learningRate) {
-  double *output = calloc(net->hidden[0].nnodes, sizeof(double));
-  double *output2 = calloc(net->hidden[1].nnodes, sizeof(double));
-  double *output3 = calloc(net->hidden[2].nnodes, sizeof(double));
-  double *finalOutput = calloc(net->hidden[2].nnodes, sizeof(double));
-  // 4
-  forward(&net->hidden[0], image, output); // first layer
-  forward(&net->hidden[1], output, output2);
-  forward(&net->hidden[2], output2, output3);
-   forward(&net->hidden[3], output3, finalOutput);
+/* returns an array on what the input most likley is */
+double *train(Network *net, double *image, int label, double learningRate) {
+  double *output = calloc(10, sizeof(double));
+  double *outputs[NUMLAYERS + 1]; // output foreach layer
+  outputs[0] = image;
 
-//  int numLayers;
-//     double **outputs = malloc(NUMLAYERS + 1) * sizeof(double*));
+  for (int i = 1; i <= NUMLAYERS; i++) {
+    outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
+  }
 
-//     for (int i = 0; i < numLayers; i++) {
-//         outputs[i] = calloc(net->hidden[i].nnodes, sizeof(double));
-//     }
+  for (int i = 0; i < NUMLAYERS; i++) {
+    forward(&net->hidden[i], outputs[i],
+            outputs[i + 1]); // forward prop
+  }
 
-//     forward(&net->hidden[0], image, outputs[0]); // First layer
-//     for (int i = 1; i < numLayers; i++) {
-//         forward(&net->hidden[i], outputs[i - 1], outputs[i]);
-//     }
+  for (int i = 0; i < 10; i++) {
+    outputs[NUMLAYERS][i] =
+        softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
+    output[i] = outputs[NUMLAYERS][i] - (i == label);
+  }
 
-//     // Use outputs[numLayers - 1] as the final output if needed
+  /*for (int i = 1; i <= NUMLAYERS; i++) {*/
+  /*  back(&net->hidden[i], outputs[i - 1], outputs[i], output, learningRate);*/
+  /*}*/
+  /*// back for last layer*/
+  /*back(&net->hidden[NUMLAYERS], outputs[NUMLAYERS - 1], NULL, output,*/
+  /*     learningRate);*/
+  /**/
+  // back propogates backwards, may cause segfault
+  for (int i = NUMLAYERS - 1; i >= 0; i--)
+    back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
 
-//     // Free allocated memory
-//     for (int i = 0; i < numLayers; i++) {
-//         free(outputs[i]);
-//     }
-//     free(outputs);
+  for (int i = 1; i <= NUMLAYERS; i++) {
+    free(outputs[i]);
+  }
 
+  return output;
+}
+
+/* returns the most likley number */
+int test(Network *net, double *image) {
+  double *outputs[NUMLAYERS + 1]; // (will become array of heap mem)
+
+  outputs[0] = image;
+  for (int i = 1; i <= NUMLAYERS; i++) {
+    outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
+  }
+  for (int i = 0; i < NUMLAYERS; i++) {
+    forward(&net->hidden[i], outputs[i],
+            outputs[i + 1]); // forward prop
+  }
+
+  for (int i = 0; i < 10; i++) {
+    outputs[NUMLAYERS][i] =
+        softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
+  }
+
+  int highest = 0;
+  for (int i = 0; i < 10; i++) {
+    if (outputs[NUMLAYERS][i] > outputs[NUMLAYERS][highest])
+      highest = i;
+  }
+
+  for (int i = 1; i <= NUMLAYERS; i++) {
+    free(outputs[i]);
+  }
+
+  return highest;
 }
 
 int main() {
   srand(time(NULL));
   int batchSize = 10;
-  double images[batchSize][SIZE]; 
+  double images[batchSize][SIZE];
   int labels[batchSize];
 
   int seekto = 0;
-  int test = 0; 
+  int test = 0;
 
   load_mnist(test, seekto, batchSize, images, labels);
   seekto += batchSize;
 
-  printf("Printing batch of images:\n");
-  print_mnist_pixel(images, batchSize);
-  print_mnist_label(labels, batchSize);
+  // printf("Printing batch of images:\n");
+  // print_mnist_pixel(images, batchSize);
+  // print_mnist_label(labels, batchSize);
   Network net;
   // // Layer layers[NUMLAYERS];
 
