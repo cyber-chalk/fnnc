@@ -1,6 +1,7 @@
 #include "./mnist2.h"
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,7 +19,7 @@
 double expo(double y) {
   if (y > 80)
     y = 80; // limit prevents overflow in exp
-  return expo(y);
+  return exp(y);
 }
 
 double softmax(double x, double *Niz, int Iter) {
@@ -72,13 +73,17 @@ void initLayer(Layer *layer, Layer *prev, int size) {
 void forward(Layer *layer, double *input, double *output) {
   // n * w + n * w ... + b
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
-  for (int i = 0; i < inputSize; i++) {
+  for (int i = 0; i < layer->nnodes; i++) {
     output[i] = layer->biases[i];
-    for (int j = 0; i < inputSize; i++) {
+  }
+
+  for (int i = 0; i < layer->nnodes; i++) {
+    for (int j = 0; j < inputSize; j++) {
       output[i] += input[j] * layer->weights[i * inputSize + j]; // +j (i think)
     }
-    output[i] = relu(output[i]);
   }
+  for (int i = 0; i < layer->nnodes; i++)
+    output[i] = relu(output[i]);
 }
 
 void back(Layer *layer, double *input, double *dInput, double *dOutput,
@@ -128,13 +133,16 @@ void back(Layer *layer, double *input, double *dInput, double *dOutput,
 double *train(Network *net, double *image, int label, double learningRate) {
   double *output = calloc(10, sizeof(double));
   double *outputs[NUMLAYERS + 1]; // output foreach layer
-  outputs[0] = image;
+  // outputs[0] = image;
+  // fix indexing
 
   for (int i = 1; i <= NUMLAYERS; i++) {
     outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
+    printf("%d", net->hidden[i - 1].nnodes);
   }
 
-  for (int i = 0; i < NUMLAYERS; i++) {
+  forward(&net->hidden[0], image, outputs[1]);
+  for (int i = 1; i < NUMLAYERS; i++) {
     forward(&net->hidden[i], outputs[i],
             outputs[i + 1]); // forward prop
   }
@@ -145,21 +153,14 @@ double *train(Network *net, double *image, int label, double learningRate) {
     output[i] = outputs[NUMLAYERS][i] - (i == label);
   }
 
-  /*for (int i = 1; i <= NUMLAYERS; i++) {*/
-  /*  back(&net->hidden[i], outputs[i - 1], outputs[i], output, learningRate);*/
-  /*}*/
-  /*// back for last layer*/
-  /*back(&net->hidden[NUMLAYERS], outputs[NUMLAYERS - 1], NULL, output,*/
-  /*     learningRate);*/
-  /**/
   // back propogates backwards, may cause segfault
-  for (int i = NUMLAYERS - 1; i >= 0; i--)
+  for (int i = NUMLAYERS - 1; i >= 1; i--)
     back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
+  back(&net->hidden[0], image, NULL, output, learningRate);
 
   for (int i = 1; i <= NUMLAYERS; i++) {
     free(outputs[i]);
   }
-
   return output;
 }
 
@@ -194,7 +195,35 @@ int test(Network *net, double *image) {
   return highest;
 }
 
+void shuffle(double (*array)[SIZE], int labels[], size_t n) {
+  double(*pointers[n])[SIZE];
+  for (size_t i = 0; i < n; i++) {
+    pointers[i] = &array[i];
+  }
+
+  // shuffle the pointers using Fisher-Yates algorithm
+  for (size_t i = 0; i < n - 1; i++) {
+    size_t j = i + rand() / (RAND_MAX / (n - i) + 1);
+    double(*temp)[SIZE] = pointers[j];
+    pointers[j] = pointers[i];
+    pointers[i] = temp;
+
+    // labels
+    int tempLabel = labels[j];
+    labels[j] = labels[i];
+    labels[i] = tempLabel;
+  }
+
+  // rebuild
+  for (size_t i = 0; i < n; i++) {
+    for (size_t j = 0; j < SIZE; j++) {
+      array[i][j] = (*pointers[i])[j];
+    }
+  }
+}
+
 int main() {
+  int epochNum = 1;
   srand(time(NULL));
   int batchSize = 10;
   double images[batchSize][SIZE];
@@ -215,6 +244,30 @@ int main() {
   initLayer(&net.hidden[0], NULL, 16); // first layer
   for (int i = 1; i < NUMLAYERS; i++)
     initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
+
+  //  for (int epoch = 0; epochNum < 1; epoch++)
+  printf("yup");
+  /*
+  | ||
+  || |_
+    */
+  double loss = 0;
+  // batch size
+  for (int i = 0; i < 1; i++) {
+    // if (epoch != 1)  shuffle(images, batchSize, labels);
+    double *output = train(&net, images[i], labels[i], loss);
+    loss += -logf(output[labels[i]] + 1e-10f); // cross entropy loss
+    free(output);
+  }
+  printf("done");
+  int numCorrect = 0;
+
+  for (int i = 0; i < NUMLAYERS; i++) {
+    free(net.hidden[i].weights);
+    free(net.hidden[i].biases);
+    free(net.hidden[i].weightM);
+    free(net.hidden[i].biasM);
+  }
 
   return 0;
 };
