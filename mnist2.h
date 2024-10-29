@@ -89,11 +89,11 @@ void load_mnist(int test, int seekto, int bSize, double images[bSize][SIZE],
 
   if (test == 1) {
     // Test data, load all at once
-    readToArr(TEST_IMAGE, NUM_TEST, LEN_INFO_IMAGE, SIZE, seekto,
-              temp_image_char, info_image);
+    readToArr(TEST_IMAGE, bSize, LEN_INFO_IMAGE, SIZE, seekto, temp_image_char,
+              info_image);
     image_char2double(bSize, temp_image_char, images);
 
-    readToArr(TEST_LABEL, NUM_TEST, LEN_INFO_LABEL, 1, seekto, temp_label_char,
+    readToArr(TEST_LABEL, bSize, LEN_INFO_LABEL, 1, seekto, temp_label_char,
               info_label);
     label_char2int(bSize, temp_label_char, labels);
   } else {

@@ -10,11 +10,9 @@
 #define BATCH_SIZE 64 // change if not running on chromebook
 #define NUMLAYERS 3   // not including input layer
 #define MOMENTUM 0.9
+#define epochNum 9
 // try to use stack allocation wherever possible
 // https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
-
-//  head -10 ~/2024S2_SProj5_Mnistcnn/data/t10k-images.idx3-ubyte | xxd -b --
-//  interesting command
 
 double expo(double y) {
   if (y > 80)
@@ -81,9 +79,8 @@ void forward(Layer *layer, double *input, double *output) {
     for (int j = 0; j < inputSize; j++) {
       output[i] += input[j] * layer->weights[i * inputSize + j]; // +j (i think)
     }
-  }
-  for (int i = 0; i < layer->nnodes; i++)
     output[i] = relu(output[i]);
+  }
 }
 
 void back(Layer *layer, double *input, double *dInput, double *dOutput,
@@ -135,10 +132,8 @@ double *train(Network *net, double *image, int label, double learningRate) {
   double *outputs[NUMLAYERS + 1]; // output foreach layer
   // outputs[0] = image;
   // fix indexing
-
   for (int i = 1; i <= NUMLAYERS; i++) {
     outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
-    printf("%d", net->hidden[i - 1].nnodes);
   }
 
   forward(&net->hidden[0], image, outputs[1]);
@@ -154,8 +149,12 @@ double *train(Network *net, double *image, int label, double learningRate) {
   }
 
   // back propogates backwards, may cause segfault
-  for (int i = NUMLAYERS - 1; i >= 1; i--)
+  for (int i = NUMLAYERS - 1; i >= 1; i--) {
+    /*for (int j = 0; j < net->hidden[i].nnodes; j++) {*/
+    /*  output[j] *= outputs[i][j] > 0 ? 1 : 0; // ReLU derivative*/
+    /*}*/
     back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
+  }
   back(&net->hidden[0], image, NULL, output, learningRate);
 
   for (int i = 1; i <= NUMLAYERS; i++) {
@@ -168,11 +167,12 @@ double *train(Network *net, double *image, int label, double learningRate) {
 int test(Network *net, double *image) {
   double *outputs[NUMLAYERS + 1]; // (will become array of heap mem)
 
-  outputs[0] = image;
   for (int i = 1; i <= NUMLAYERS; i++) {
     outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
   }
-  for (int i = 0; i < NUMLAYERS; i++) {
+
+  forward(&net->hidden[0], image, outputs[1]);
+  for (int i = 1; i < NUMLAYERS; i++) {
     forward(&net->hidden[i], outputs[i],
             outputs[i + 1]); // forward prop
   }
@@ -222,19 +222,33 @@ void shuffle(double (*array)[SIZE], int labels[], size_t n) {
   }
 }
 
+void printNetworkSummary(Network *net) {
+  printf("Network Structure Summary:\n");
+
+  for (int i = 0; i < NUMLAYERS; i++) {
+    Layer *layer = &net->hidden[i];
+    printf("Layer %d:\n", i + 1);
+    printf("  Nodes: %d\n", layer->nnodes);
+
+    // Display a few sample biases
+    printf("  Sample Biases: ");
+    for (int j = 0; j < 3 && j < layer->nnodes; j++) { // limiting to 3 nodes
+      printf("%lf ", layer->biases[j]);
+    }
+    printf("\n");
+
+    // Display a few sample weights for the first node
+    printf("  Sample Weights for Node 0: ");
+    int ninputs = layer->prevLayer ? layer->prevLayer->nnodes : 0;
+    for (int k = 0; k < 3 && k < ninputs; k++) { // limit to 3 weights
+      printf("%.3f ", layer->weights[k]);
+    }
+    printf("\n");
+  }
+}
+
 int main() {
-  int epochNum = 1;
   srand(time(NULL));
-  int batchSize = 10;
-  double images[batchSize][SIZE];
-  int labels[batchSize];
-
-  int seekto = 0;
-  int test = 0;
-
-  load_mnist(test, seekto, batchSize, images, labels);
-  seekto += batchSize;
-
   // printf("Printing batch of images:\n");
   // print_mnist_pixel(images, batchSize);
   // print_mnist_label(labels, batchSize);
@@ -243,24 +257,63 @@ int main() {
 
   initLayer(&net.hidden[0], NULL, 16); // first layer
   for (int i = 1; i < NUMLAYERS; i++)
-    initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
+    initLayer(&net.hidden[i], &net.hidden[i - 1], 16); // um ?
 
-  //  for (int epoch = 0; epochNum < 1; epoch++)
-  printf("yup");
   /*
   | ||
   || |_
     */
   double loss = 0;
-  // batch size
-  for (int i = 0; i < 1; i++) {
-    // if (epoch != 1)  shuffle(images, batchSize, labels);
-    double *output = train(&net, images[i], labels[i], loss);
-    loss += -logf(output[labels[i]] + 1e-10f); // cross entropy loss
-    free(output);
+  double learningRate = 0.0005;
+
+  int batchSize = BATCH_SIZE;
+  int totalImages = 60000;
+
+  for (int epoch = 0; epoch < 1; epoch++) {
+    int seekto = 0;
+    printf("working\n");
+    while (seekto < totalImages) {
+      double images[batchSize][SIZE];
+      int labels[batchSize];
+      load_mnist(0, seekto, batchSize, images, labels);
+      seekto += batchSize;
+
+      for (int i = 0; i < batchSize; i++) {
+        if (epoch != 1)
+          shuffle(images, labels, batchSize);
+
+        double *output = train(&net, images[i], labels[i], learningRate);
+        /*for (int i = 0; i < 10; i++)*/
+        /*  printf("%lf \n", output[i]);*/
+        double safeOutput = fmax(output[labels[i]], 1e-10);
+        loss += -logf(safeOutput);
+        /*loss += -logf(output[labels[i]] + 1e-10); // cross entropy loss*/
+        free(output);
+      }
+    }
   }
-  printf("done");
+  printf("finished training, loss: %lf\n", loss);
+  printNetworkSummary(&net);
+
+  // testing:
+
+  double testImages[15][SIZE];
+  int testLabels[15];
+  load_mnist(1, 0, 15, testImages, testLabels);
   int numCorrect = 0;
+  printf("\n)");
+  print_mnist_label(testLabels, 15);
+  for (int i = 0; i < 15; i++) {
+    int res = test(&net, testImages[i]);
+    printf("result: %d ", res);
+    if (res == testLabels[i])
+      numCorrect++;
+  }
+
+  printf("accuracy %d / %d\n", numCorrect, 15);
+  double newarr[] = {1.0, 2.0, 3.0};
+  printf("softmax test: %lf\n",
+         softmax(1, newarr, sizeof(newarr) / sizeof(double)));
 
   for (int i = 0; i < NUMLAYERS; i++) {
     free(net.hidden[i].weights);
