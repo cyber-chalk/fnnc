@@ -5,12 +5,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <assert.h>
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
 #define relu_derivative(x) (x > 0) ? 1 : 0
 #define BATCH_SIZE 64 // change if not running on chromebook
 #define NUMLAYERS 3   // not including input layer
 #define MOMENTUM 0.9
 #define epochNum 9
+// #define learningRate 0.0005
+double learningRate = 0.0005;
 // try to use stack allocation wherever possible
 // https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
@@ -85,15 +88,28 @@ void forward(Layer *layer, double *input, double *output) {
 
 void back(Layer *layer, double *input, double *dInput, double *dOutput,
           double learningRate) {
+            assert(layer != NULL && "Layer cannot be null");
+    assert(input != NULL && "Input cannot be null");
+    assert(dOutput != NULL && "dOutput cannot be null");
+    assert(learningRate > 0 && "Learning rate must be positive");
+    assert(learningRate < 1.0 && "Learning rate should be less than 1.0");
   /* dinput/output: The gradient of the loss function with respect to the
    * input/output of the current layer (i.e., the error from the next layer or
    * the loss function). */
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
+
+    assert(layer->nnodes > 0 && "Number of nodes must be positive");
+    assert(layer->weights != NULL && "Weights array cannot be null");
+    assert(layer->biases != NULL && "Biases array cannot be null");
+    assert(layer->weightM != NULL && "Weight momentum array cannot be null");
+    assert(layer->biasM != NULL && "Bias momentum array cannot be null");
+
   if (dInput) {
     for (int j = 0; j < inputSize; j++) {
       // dInput[j] = 0.0f; // calloced
       for (int i = 0; i < layer->nnodes; i++) {
         dInput[j] += dOutput[i] * layer->weights[j * layer->nnodes + i];
+        // assert(fabs(dInput[j]) < 1e6 && "Gradient too large - possible exploding gradient");
       }
     }
   }
@@ -104,6 +120,9 @@ void back(Layer *layer, double *input, double *dInput, double *dOutput,
     for (int i = 0; i < layer->nnodes; i++) {
       double grad = dOutput[i] *
                     in_j; // gradient for weight between input[j] and output[i]
+
+      // assert(fabs(grad) > 1e-15 && "Gradient too small - possible vanishing gradient");
+      // assert(fabs(grad) < 1e6 && "Gradient too large - possible exploding gradient");
 
       // weight momentum (momentum * prev momentum + learning rate *
       // current gradient)
@@ -150,9 +169,9 @@ double *train(Network *net, double *image, int label, double learningRate) {
 
   // back propogates backwards, may cause segfault
   for (int i = NUMLAYERS - 1; i >= 1; i--) {
-    /*for (int j = 0; j < net->hidden[i].nnodes; j++) {*/
-    /*  output[j] *= outputs[i][j] > 0 ? 1 : 0; // ReLU derivative*/
-    /*}*/
+   for (int j = 0; j < net->hidden[i].nnodes; j++) {
+    outputs[i][j] *= relu_derivative(outputs[i][j]); // Apply ReLU derivative
+  }
     back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
   }
   back(&net->hidden[0], image, NULL, output, learningRate);
@@ -264,7 +283,6 @@ int main() {
   || |_
     */
   double loss = 0;
-  double learningRate = 0.0005;
 
   int batchSize = BATCH_SIZE;
   int totalImages = 60000;
