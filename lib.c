@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <assert.h>
 #define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
 #define relu_derivative(x) (x > 0) ? 1 : 0
 #define BATCH_SIZE 64 // change if not running on chromebook
@@ -88,28 +87,29 @@ void forward(Layer *layer, double *input, double *output) {
 
 void back(Layer *layer, double *input, double *dInput, double *dOutput,
           double learningRate) {
-            assert(layer != NULL && "Layer cannot be null");
-    assert(input != NULL && "Input cannot be null");
-    assert(dOutput != NULL && "dOutput cannot be null");
-    assert(learningRate > 0 && "Learning rate must be positive");
-    assert(learningRate < 1.0 && "Learning rate should be less than 1.0");
+  assert(layer != NULL && "Layer cannot be null");
+  assert(input != NULL && "Input cannot be null");
+  assert(dOutput != NULL && "dOutput cannot be null");
+  assert(learningRate > 0 && "Learning rate must be positive");
+  assert(learningRate < 1.0 && "Learning rate should be less than 1.0");
   /* dinput/output: The gradient of the loss function with respect to the
    * input/output of the current layer (i.e., the error from the next layer or
    * the loss function). */
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
 
-    assert(layer->nnodes > 0 && "Number of nodes must be positive");
-    assert(layer->weights != NULL && "Weights array cannot be null");
-    assert(layer->biases != NULL && "Biases array cannot be null");
-    assert(layer->weightM != NULL && "Weight momentum array cannot be null");
-    assert(layer->biasM != NULL && "Bias momentum array cannot be null");
+  assert(layer->nnodes > 0 && "Number of nodes must be positive");
+  assert(layer->weights != NULL && "Weights array cannot be null");
+  assert(layer->biases != NULL && "Biases array cannot be null");
+  assert(layer->weightM != NULL && "Weight momentum array cannot be null");
+  assert(layer->biasM != NULL && "Bias momentum array cannot be null");
 
   if (dInput) {
     for (int j = 0; j < inputSize; j++) {
       // dInput[j] = 0.0f; // calloced
       for (int i = 0; i < layer->nnodes; i++) {
         dInput[j] += dOutput[i] * layer->weights[j * layer->nnodes + i];
-        // assert(fabs(dInput[j]) < 1e6 && "Gradient too large - possible exploding gradient");
+        // assert(fabs(dInput[j]) < 1e6 && "Gradient too large - possible
+        // exploding gradient");
       }
     }
   }
@@ -121,8 +121,9 @@ void back(Layer *layer, double *input, double *dInput, double *dOutput,
       double grad = dOutput[i] *
                     in_j; // gradient for weight between input[j] and output[i]
 
-      // assert(fabs(grad) > 1e-15 && "Gradient too small - possible vanishing gradient");
-      // assert(fabs(grad) < 1e6 && "Gradient too large - possible exploding gradient");
+      // assert(fabs(grad) > 1e-15 && "Gradient too small - possible vanishing
+      // gradient"); assert(fabs(grad) < 1e6 && "Gradient too large - possible
+      // exploding gradient");
 
       // weight momentum (momentum * prev momentum + learning rate *
       // current gradient)
@@ -169,9 +170,9 @@ double *train(Network *net, double *image, int label, double learningRate) {
 
   // back propogates backwards, may cause segfault
   for (int i = NUMLAYERS - 1; i >= 1; i--) {
-   for (int j = 0; j < net->hidden[i].nnodes; j++) {
-    outputs[i][j] *= relu_derivative(outputs[i][j]); // Apply ReLU derivative
-  }
+    for (int j = 0; j < net->hidden[i].nnodes; j++) {
+      outputs[i][j] *= relu_derivative(outputs[i][j]); // Apply ReLU derivative
+    }
     back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
   }
   back(&net->hidden[0], image, NULL, output, learningRate);
@@ -322,6 +323,10 @@ int main() {
   printf("\n)");
   print_mnist_label(testLabels, 15);
   for (int i = 0; i < 15; i++) {
+    if (i == 1) {
+      for (int j = 0; j < SIZE; j++)
+        printf("%lf", testImages[i][j]);
+    }
     int res = test(&net, testImages[i]);
     printf("result: %d ", res);
     if (res == testLabels[i])
