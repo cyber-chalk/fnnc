@@ -12,12 +12,49 @@
 			<div class="layer"></div>
 			<div class="layer"></div>
 			<div class="layer"></div>
-			<div class="layer"></div>
-			<div class="layer"></div>
-			<div class="layer"></div>
-			<div class="layer"></div>
-			<div class="layer"></div>
-			<div class="layer"></div>
+		</div>
+		<div id="arrows">
+			<!-- < -->
+			<svg
+				onclick="load(-1)"
+				id="left"
+				width="14"
+				height="23"
+				viewBox="0 0 14 23"
+				fill="none"
+				xmlns="http://www.w3.org/2000/svg"
+			>
+				<path
+					d="M12.4651 1.11255L2.23285 11.3448L12.4651 21.577"
+					stroke="white"
+					stroke-width="2"
+					stroke-linecap="round"
+				/>
+			</svg>
+
+			<!-- > -->
+			<svg
+				onclick="load(1)"
+				id="right"
+				width="14"
+				height="23"
+				viewBox="0 0 14 23"
+				fill="none"
+				xmlns="http://www.w3.org/2000/svg"
+			>
+				<path
+					d="M1.50613 1.11255L11.7383 11.3448L1.50613 21.577"
+					stroke="white"
+					stroke-width="2"
+					stroke-linecap="round"
+				/>
+			</svg>
+		</div>
+		<div id="info-container">
+			<h4>Label:</h4>
+			<h4>Guess:</h4>
+			<br />
+			<h4>Loss Rate:</h4>
 		</div>
 	</body>
 </html>

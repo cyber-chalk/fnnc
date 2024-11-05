@@ -1,5 +1,6 @@
 #include "./mnist2.h"
 #include <assert.h>
+#include "./mongoose.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

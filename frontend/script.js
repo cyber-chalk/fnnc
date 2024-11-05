@@ -48,6 +48,15 @@ let numbers = `0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
 			0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
 			0.0 0.0 0.0`;
 
+let darkblue = "rgba(38, 60, 255, 1)";
+let lightblue = "rgba(21, 213, 255, 1)";
+
+let coloblur = {
+	"#000000": "0px",
+	"rgba(38, 60, 255, 1)": "13.4px",
+	"rgba(21, 213, 255, 1)": "21px"
+};
+
 const format = (container, colour, itr) => {
 	let formattedHTML = "";
 	let numberArray = numbers.trim().split(/\s+/); // Split into an array by whitespace
@@ -60,29 +69,39 @@ const format = (container, colour, itr) => {
 
 		const [br, odiv, ediv] =
 			i % 28 === 0 ? ["<br>", "<span>", "</span>"] : ["", "", ""];
+		const solid = colour == "white" ? "solid" : "";
 
-		formattedHTML += `${ediv} ${odiv}<span style="--bg-color: ${color}; " class="${className} number">${value}</span>`;
-		// if ((i + 1) % 28 === 0) formattedHTML += "<br>"; // Add a line break every 28 numbers
+		formattedHTML += `${ediv} ${odiv}<span style="--bg-color: ${color}; --blur: ${coloblur[colour]} " class="${className} ${solid} number">${value}</span>`;
+
+		// --blur: ${coloblur[colour]}
 	}
 
 	container.innerHTML = formattedHTML;
 	// if (itr == 0) return;
-	container.style.transform = `translate(${-20 + itr * 10}px, ${10}px)`;
+	container.style.transform = `translate(${-50 + itr * 25}px, ${
+		50 - itr * 25
+	}px)`;
 	// "translate(" + "-5px" + "," + "10px" + ")"; // literals dont work
 	// container.style.zIndex = 0 - itr;
 	// container.style.opacity = 0.5;
 };
 
-let container = document.getElementsByClassName(`layer`);
-// let colarr = ["#ff1100", "#d7a900", "white", "#49f4ff", "#0023d7"];
-let colarr = [
-	"#ff1100",
-	"#0083ff",
-	"#d7a900",
-	"white",
-	"#00ff00",
-	"#49f4ff",
-	"#0023d7"
-];
-for (let i = 0; i < colarr.length; i++) format(container[i], colarr[i], i);
-//#100cff"
+const load = (plusminus) => {
+	let numberContainer = document.getElementById("numbers");
+	if (numberContainer.hasChildNodes())
+		[...numberContainer.children].forEach((element) => {
+			element.remove();
+		});
+	for (let i = 0; i < 3; i++) {
+		let layer = document.createElement("div");
+		layer.classList.add("layer");
+		let container = document.getElementById("numbers");
+		container.append(layer);
+	}
+	let container = document.getElementsByClassName(`layer`);
+	let colarr = [darkblue, lightblue, "white"];
+	// let colarr = ["#000000"];
+	for (let i = 0; i < colarr.length; i++) format(container[i], colarr[i], i);
+	//#100cff"
+};
+load(0);

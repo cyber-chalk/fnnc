@@ -1,6 +1,11 @@
 # Prerequisites
 *.d
 
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
 # my stuff
 exec
 compile_flags.txt
