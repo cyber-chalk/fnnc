@@ -378,9 +378,11 @@ int main() {
   printf("\n)");
 
   print_mnist_label(testLabels, 15);
+  // ! this doesnt print because of the eventloop below (and I dont
+  // want to thread it), however, the code still works
   for (int i = 0; i < 15; i++) {
     int res = test(&net, testImages[i]);
-    printf("result: %2.d ", res);
+    printf("result: %d ", res);
     if (res == testLabels[i]) {
       numCorrect++;
       rightArr[i] = res;
