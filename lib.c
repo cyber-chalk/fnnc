@@ -1,6 +1,6 @@
 #include "./mnist2.h"
-#include <assert.h>
 #include "./mongoose.h"
+#include <assert.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -14,6 +14,7 @@
 #define epochNum 9
 // #define learningRate 0.0005
 double learningRate = 0.0005;
+char *jsonC;
 // try to use stack allocation wherever possible
 // https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
@@ -267,6 +268,58 @@ void printNetworkSummary(Network *net) {
     printf("\n");
   }
 }
+void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
+  if (ev == MG_EV_HTTP_MSG) {
+    struct mg_http_message *hm = (struct mg_http_message *)ev_data;
+
+    // Check if the request is for "/api/welcome" to send JSON
+    if (mg_match(hm->uri, mg_str("/api"), NULL)) {
+      mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", jsonC);
+    }
+    // Serve frontend HTML and assets from the "frontend/" directory
+    else {
+      struct mg_http_serve_opts opts = {.root_dir = "./frontend/"};
+      mg_http_serve_dir(c, hm, &opts);
+    }
+  }
+}
+
+char *yason(double images[15][SIZE], int labels[15], int rightArr[15],
+            double loss, size_t tSize) {
+  char *out = malloc(tSize);
+  int offset = 0;
+  offset += snprintf(out + offset, tSize - offset, "{\n  \"testImages\": [\n");
+  for (int i = 0; i < 15; i++) {
+    offset += snprintf(out + offset, tSize - offset, "    [");
+    for (int j = 0; j < SIZE; j++) {
+      offset += snprintf(out + offset, tSize - offset, "%lf", images[i][j]);
+      if (j < SIZE - 1)
+        offset += snprintf(out + offset, tSize - offset, ", ");
+    }
+    if (i < 14)
+      offset += snprintf(out + offset, tSize - offset, "], \n");
+    else
+      offset += snprintf(out + offset, tSize - offset, "]\n");
+  }
+  offset += snprintf(out + offset, tSize - offset, "  ],\n  \"testLabels\": [");
+  for (int i = 0; i < 15; i++) {
+    offset += snprintf(out + offset, tSize - offset, "%d", labels[i]);
+    if (i < 14)
+      offset += snprintf(out + offset, tSize - offset, ", ");
+  }
+  offset += snprintf(out + offset, tSize - offset, "],\n  \"rightArr\": [");
+
+  for (int i = 0; i < 15; i++) {
+    offset += snprintf(out + offset, tSize - offset, "%d", rightArr[i]);
+    if (i < 14)
+      offset += snprintf(out + offset, tSize - offset, ", ");
+  }
+  // I need to add loss:
+  offset += snprintf(out + offset, tSize - offset, "],\n \"loss\": %lf", loss);
+  offset += snprintf(out + offset, tSize - offset, "\n}");
+  out[tSize - 1] = '\0';
+  return out;
+}
 
 int main() {
   srand(time(NULL));
@@ -287,7 +340,7 @@ int main() {
   double loss = 0;
 
   int batchSize = BATCH_SIZE;
-  int totalImages = 60000;
+  int totalImages = 3000;
 
   for (int epoch = 0; epoch < 1; epoch++) {
     int seekto = 0;
@@ -299,7 +352,7 @@ int main() {
       seekto += batchSize;
 
       for (int i = 0; i < batchSize; i++) {
-        if (epoch != 1)
+        if (epoch > 0)
           shuffle(images, labels, batchSize);
 
         double *output = train(&net, images[i], labels[i], learningRate);
@@ -319,26 +372,33 @@ int main() {
 
   double testImages[15][SIZE];
   int testLabels[15];
+  int rightArr[15];
   load_mnist(1, 0, 15, testImages, testLabels);
   int numCorrect = 0;
   printf("\n)");
+
   print_mnist_label(testLabels, 15);
   for (int i = 0; i < 15; i++) {
-    if (i == 1) {
-      for (int j = 0; j < SIZE; j++)
-        printf("%lf", testImages[i][j]);
-    }
     int res = test(&net, testImages[i]);
-    printf("result: %d ", res);
-    if (res == testLabels[i])
+    printf("result: %2.d ", res);
+    if (res == testLabels[i]) {
       numCorrect++;
+      rightArr[i] = res;
+    }
   }
+  size_t jsonSize = 200000; // yuck
+  // global
+  jsonC = yason(testImages, testLabels, rightArr, loss, jsonSize);
 
-  printf("accuracy %d / %d\n", numCorrect, 15);
-  double newarr[] = {1.0, 2.0, 3.0};
-  printf("softmax test: %lf\n",
-         softmax(1, newarr, sizeof(newarr) / sizeof(double)));
-
+  // webserver by mongoose
+  struct mg_mgr mgr; // Declare event manager
+  mg_mgr_init(&mgr); // Initialise event manager
+  mg_http_listen(&mgr, "http://127.0.0.1:8000", ev_handler,
+                 NULL); // Setup listener
+  for (;;) {            // Run an infinite event loop
+    mg_mgr_poll(&mgr, 1000);
+  }
+  free(jsonC);
   for (int i = 0; i < NUMLAYERS; i++) {
     free(net.hidden[i].weights);
     free(net.hidden[i].biases);
