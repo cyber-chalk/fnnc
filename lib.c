@@ -6,17 +6,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#define relu(x) ((x) > 0 ? (x) : 0) // maybe make it a leaky reLU
+#define relu(x) ((x) > 0 ? (x) : 0)
 #define relu_derivative(x) (x > 0) ? 1 : 0
 #define BATCH_SIZE 64 // change if not running on chromebook
 #define NUMLAYERS 3   // not including input layer
 #define MOMENTUM 0.9
-#define epochNum 9
+#define epochNum 2
 // #define learningRate 0.0005
 double learningRate = 0.0005;
 char *jsonC;
-// try to use stack allocation wherever possible
-// https://medium.com/@chenymj23/memory-whether-to-store-on-the-heap-or-the-stack-4ff33b2c1e5f
 
 double expo(double y) {
   if (y > 80)
@@ -81,69 +79,41 @@ void forward(Layer *layer, double *input, double *output) {
 
   for (int i = 0; i < layer->nnodes; i++) {
     for (int j = 0; j < inputSize; j++) {
-      output[i] += input[j] * layer->weights[i * inputSize + j]; // +j (i think)
+      output[i] += input[i] * layer->weights[i * inputSize + j];
     }
     output[i] = relu(output[i]);
   }
 }
 
-void back(Layer *layer, double *input, double *dInput, double *dOutput,
+void back(Layer *layer, double *input, double *dOutput, double *dInput,
           double learningRate) {
-  assert(layer != NULL && "Layer cannot be null");
-  assert(input != NULL && "Input cannot be null");
-  assert(dOutput != NULL && "dOutput cannot be null");
-  assert(learningRate > 0 && "Learning rate must be positive");
-  assert(learningRate < 1.0 && "Learning rate should be less than 1.0");
-  /* dinput/output: The gradient of the loss function with respect to the
-   * input/output of the current layer (i.e., the error from the next layer or
-   * the loss function). */
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
-
-  assert(layer->nnodes > 0 && "Number of nodes must be positive");
-  assert(layer->weights != NULL && "Weights array cannot be null");
-  assert(layer->biases != NULL && "Biases array cannot be null");
-  assert(layer->weightM != NULL && "Weight momentum array cannot be null");
-  assert(layer->biasM != NULL && "Bias momentum array cannot be null");
 
   if (dInput) {
     for (int j = 0; j < inputSize; j++) {
-      // dInput[j] = 0.0f; // calloced
+      dInput[j] = 0.0;
       for (int i = 0; i < layer->nnodes; i++) {
         dInput[j] += dOutput[i] * layer->weights[j * layer->nnodes + i];
-        // assert(fabs(dInput[j]) < 1e6 && "Gradient too large - possible
-        // exploding gradient");
       }
     }
   }
 
-  // update weights and momentum foreach input/output connection
   for (int j = 0; j < inputSize; j++) {
     double in_j = input[j];
+    double *weightRow = &layer->weights[j * layer->nnodes];
+    double *momentumRow = &layer->weightM[j * layer->nnodes];
     for (int i = 0; i < layer->nnodes; i++) {
-      double grad = dOutput[i] *
-                    in_j; // gradient for weight between input[j] and output[i]
-
-      // assert(fabs(grad) > 1e-15 && "Gradient too small - possible vanishing
-      // gradient"); assert(fabs(grad) < 1e6 && "Gradient too large - possible
-      // exploding gradient");
-
-      // weight momentum (momentum * prev momentum + learning rate *
-      // current gradient)
-      layer->weightM[j * layer->nnodes + i] =
-          MOMENTUM * layer->weightM[j * layer->nnodes + i] +
-          learningRate * grad;
-
-      // update weights thru momentum
-      layer->weights[j * layer->nnodes + i] -=
-          layer->weightM[j * layer->nnodes + i];
+      double grad = dOutput[i] * in_j;
+      momentumRow[i] = MOMENTUM * momentumRow[i] + learningRate * grad;
+      // weightRow[i] -= momentumRow[i];
+      // Update weights
+      if (dInput)
+        dInput[j] += dOutput[i] * weightRow[i];
+      weightRow[i] -= momentumRow[i];
     }
   }
-
-  // update biases and their momentum
   for (int i = 0; i < layer->nnodes; i++) {
-    // update bias momentum
     layer->biasM[i] = MOMENTUM * layer->biasM[i] + learningRate * dOutput[i];
-    // update bias thru momentum
     layer->biases[i] -= layer->biasM[i];
   }
 }
@@ -152,7 +122,13 @@ void back(Layer *layer, double *input, double *dInput, double *dOutput,
 double *train(Network *net, double *image, int label, double learningRate) {
   double *output = calloc(10, sizeof(double));
   double *outputs[NUMLAYERS + 1]; // output foreach layer
-  // outputs[0] = image;
+  double *gradients[NUMLAYERS + 1];
+
+  gradients[1] = calloc(16, sizeof(double));
+  gradients[2] = calloc(16, sizeof(double));
+  gradients[3] = calloc(10, sizeof(double));
+
+  //  outputs[0] = image;
   // fix indexing
   for (int i = 1; i <= NUMLAYERS; i++) {
     outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
@@ -167,20 +143,24 @@ double *train(Network *net, double *image, int label, double learningRate) {
   for (int i = 0; i < 10; i++) {
     outputs[NUMLAYERS][i] =
         softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
-    output[i] = outputs[NUMLAYERS][i] - (i == label);
+    // gradients[3][i] = outputs[NUMLAYERS][i] - (i == label); // this causes
+    // NANs and infs
   }
 
   // back propogates backwards, may cause segfault
   for (int i = NUMLAYERS - 1; i >= 1; i--) {
     for (int j = 0; j < net->hidden[i].nnodes; j++) {
-      outputs[i][j] *= relu_derivative(outputs[i][j]); // Apply ReLU derivative
+      gradients[i][j] *=
+          relu_derivative(outputs[i][j]); // Apply ReLU derivative
     }
-    back(&net->hidden[i], outputs[i], outputs[i + 1], output, learningRate);
+    back(&net->hidden[i], outputs[i], gradients[i + 1], gradients[i],
+         learningRate);
   }
-  back(&net->hidden[0], image, NULL, output, learningRate);
+  back(&net->hidden[0], image, gradients[1], NULL, learningRate);
 
   for (int i = 1; i <= NUMLAYERS; i++) {
     free(outputs[i]);
+    free(gradients[i]);
   }
   return output;
 }
@@ -261,8 +241,8 @@ void printNetworkSummary(Network *net) {
 
     // Display a few sample weights for the first node
     printf("  Sample Weights for Node 0: ");
-    int ninputs = layer->prevLayer ? layer->prevLayer->nnodes : 0;
-    for (int k = 0; k < 3 && k < ninputs; k++) { // limit to 3 weights
+    // int ninputs = layer->prevLayer ? layer->prevLayer->nnodes : 0;
+    for (int k = 0; k < 3; k++) { // limit to 3 weights
       printf("%.3f ", layer->weights[k]);
     }
     printf("\n");
@@ -272,7 +252,6 @@ void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
   if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *hm = (struct mg_http_message *)ev_data;
 
-    // Check if the request is for "/api/welcome" to send JSON
     if (mg_match(hm->uri, mg_str("/api"), NULL)) {
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", jsonC);
     }
@@ -283,7 +262,7 @@ void ev_handler(struct mg_connection *c, int ev, void *ev_data) {
     }
   }
 }
-
+// formats data to json
 char *yason(double images[15][SIZE], int labels[15], int rightArr[15],
             double loss, size_t tSize) {
   char *out = malloc(tSize);
@@ -314,7 +293,6 @@ char *yason(double images[15][SIZE], int labels[15], int rightArr[15],
     if (i < 14)
       offset += snprintf(out + offset, tSize - offset, ", ");
   }
-  // I need to add loss:
   offset += snprintf(out + offset, tSize - offset, "],\n \"loss\": %lf", loss);
   offset += snprintf(out + offset, tSize - offset, "\n}");
   out[tSize - 1] = '\0';
@@ -327,12 +305,10 @@ int main() {
   // print_mnist_pixel(images, batchSize);
   // print_mnist_label(labels, batchSize);
   Network net;
-  // // Layer layers[NUMLAYERS];
 
   initLayer(&net.hidden[0], NULL, 16); // first layer
   for (int i = 1; i < NUMLAYERS; i++)
-    initLayer(&net.hidden[i], &net.hidden[i - 1], 16); // um ?
-
+    initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
   /*
   | ||
   || |_
@@ -342,7 +318,7 @@ int main() {
   int batchSize = BATCH_SIZE;
   int totalImages = 3000;
 
-  for (int epoch = 0; epoch < 1; epoch++) {
+  for (int epoch = 0; epoch < epochNum; epoch++) {
     int seekto = 0;
     printf("working\n");
     while (seekto < totalImages) {
@@ -388,6 +364,7 @@ int main() {
       rightArr[i] = res;
     }
   }
+  printf("%lf\n", learningRate);
   size_t jsonSize = 200000; // yuck
   // global
   jsonC = yason(testImages, testLabels, rightArr, loss, jsonSize);
