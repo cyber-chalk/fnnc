@@ -9,9 +9,9 @@
 #define relu(x) ((x) > 0 ? (x) : 0)
 #define relu_derivative(x) (x > 0) ? 1 : 0
 #define BATCH_SIZE 64 // change if not running on chromebook
-#define NUMLAYERS 3   // not including input layer
+#define NUMLAYERS 3   // not including output layer
 #define MOMENTUM 0.9
-#define epochNum 2
+#define epochNum 1
 // #define learningRate 0.0005
 double learningRate = 0.0005;
 char *jsonC;
@@ -36,11 +36,16 @@ double softmax(double x, double *Niz, int Iter) {
   return (expo(x)) / Sum;
 }
 
+void apply_relu_derivative(double *gradients, double *outputs, int numNodes) {
+  for (int i = 0; i < numNodes; i++)
+    gradients[i] *= (outputs[i] > 0) ? 1.0 : 0.0;
+}
+
 typedef struct _Layer {
   double *weights, *biases;
   double *weightM, *biasM; // momentum
 
-  int nnodes; // number of nodes
+  int nnodes; // number of nodes in next layer
   struct _Layer *prevLayer;
 } Layer;
 
@@ -70,17 +75,34 @@ void initLayer(Layer *layer, Layer *prev, int size) {
   layer->prevLayer = prev;
 }
 
-void forward(Layer *layer, double *input, double *output) {
+void forward(Layer *layer, double *input, double *output, int applyRelu) {
   // n * w + n * w ... + b
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
   for (int i = 0; i < layer->nnodes; i++) {
     output[i] = layer->biases[i];
   }
 
-  for (int i = 0; i < layer->nnodes; i++) {
-    for (int j = 0; j < inputSize; j++) {
-      output[i] += input[i] * layer->weights[i * inputSize + j];
+  /*for (int i = 0; i < layer->nnodes; i++) {*/
+  /*  for (int j = 0; j < inputSize; j++) {*/
+  /*    output[i] += input[j] * layer->weights[i * inputSize + j];*/
+  /*  }*/
+  /*  if (applyRelu)*/
+  /*    output[i] = relu(output[i]);*/
+  /*}*/
+
+  /*for (int i = 0; i < layer->nnodes; i++) {*/
+  /*  for (int j = 0; j < inputSize; j++) {*/
+  /*    output[i] += input[j] * layer->weights[i * inputSize + j];*/
+  /*  }*/
+  /*  if (applyRelu)*/
+  /*    output[i] = relu(output[i]);*/
+  /*}*/
+  for (int j = 0; j < inputSize; j++) {
+    for (int i = 0; i < layer->nnodes; i++) {
+      output[i] += input[j] * layer->weights[j * layer->nnodes + i];
     }
+  }
+  for (int i = 0; i < layer->nnodes; i++) {
     output[i] = relu(output[i]);
   }
 }
@@ -89,7 +111,7 @@ void back(Layer *layer, double *input, double *dOutput, double *dInput,
           double learningRate) {
   int inputSize = (layer->prevLayer == NULL) ? 784 : layer->prevLayer->nnodes;
 
-  if (dInput) {
+  if (dInput != NULL) {
     for (int j = 0; j < inputSize; j++) {
       dInput[j] = 0.0;
       for (int i = 0; i < layer->nnodes; i++) {
@@ -120,49 +142,52 @@ void back(Layer *layer, double *input, double *dOutput, double *dInput,
 
 /* returns an array on what the input most likley is */
 double *train(Network *net, double *image, int label, double learningRate) {
-  double *output = calloc(10, sizeof(double));
-  double *outputs[NUMLAYERS + 1]; // output foreach layer
+  double *outputs[NUMLAYERS]; // output foreach layer (3)
   double *gradients[NUMLAYERS + 1];
 
   gradients[1] = calloc(16, sizeof(double));
   gradients[2] = calloc(16, sizeof(double));
   gradients[3] = calloc(10, sizeof(double));
+  // ~ dont need outputs[0] because its the input for foward.1
+  outputs[1] = calloc(net->hidden[0].nnodes, sizeof(double));
+  outputs[2] = calloc(net->hidden[1].nnodes, sizeof(double));
+  double *finalOutput = calloc(10, sizeof(double));
+  // final output is from 2->3
 
-  //  outputs[0] = image;
-  // fix indexing
-  for (int i = 1; i <= NUMLAYERS; i++) {
-    outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
-  }
-
-  forward(&net->hidden[0], image, outputs[1]);
-  for (int i = 1; i < NUMLAYERS; i++) {
-    forward(&net->hidden[i], outputs[i],
-            outputs[i + 1]); // forward prop
-  }
+  forward(&net->hidden[0], image, outputs[1], 1);
+  forward(&net->hidden[1], outputs[1], outputs[2], 1);
+  forward(&net->hidden[2], outputs[2], finalOutput, 0);
 
   for (int i = 0; i < 10; i++) {
-    outputs[NUMLAYERS][i] =
-        softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
-    // gradients[3][i] = outputs[NUMLAYERS][i] - (i == label); // this causes
-    // NANs and infs
+    // finalOutput[i] = softmax(finalOutput[i], finalOutput, 10);
+    // softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
+    gradients[3][i] = finalOutput[i] - (i == label);
   }
 
-  // back propogates backwards, may cause segfault
-  for (int i = NUMLAYERS - 1; i >= 1; i--) {
-    for (int j = 0; j < net->hidden[i].nnodes; j++) {
-      gradients[i][j] *=
-          relu_derivative(outputs[i][j]); // Apply ReLU derivative
-    }
-    back(&net->hidden[i], outputs[i], gradients[i + 1], gradients[i],
-         learningRate);
-  }
+  // back propogates backward
+  // apply_relu_derivative(gradients[3], finalOutput, net->hidden[2].nnodes);
+  back(&net->hidden[2], outputs[2], gradients[3], gradients[2], learningRate);
+
+  // apply_relu_derivative(gradients[2], outputs[2], net->hidden[1].nnodes);
+  back(&net->hidden[1], outputs[1], gradients[2], gradients[1], learningRate);
+  /*for (int i = 2; i >= 1; i--) {*/
+  /*  for (int j = 0; j < net->hidden[i].nnodes; j++) {*/
+  /*    gradients[i][j] *=*/
+  /*        relu_derivative(outputs[i][j]); // Apply ReLU derivative*/
+  /*  }*/
+  /*  back(&net->hidden[i], outputs[i], gradients[i + 1], gradients[i],*/
+  /*       learningRate);*/
+  /*  printf(" %d\n", i);*/
+  /*}*/
+  // apply_relu_derivative(gradients[1], outputs[1], net->hidden[0].nnodes);
   back(&net->hidden[0], image, gradients[1], NULL, learningRate);
 
-  for (int i = 1; i <= NUMLAYERS; i++) {
-    free(outputs[i]);
-    free(gradients[i]);
-  }
-  return output;
+  free(gradients[1]);
+  free(gradients[2]);
+  free(gradients[3]);
+  free(outputs[1]);
+  free(outputs[2]);
+  return finalOutput;
 }
 
 /* returns the most likley number */
@@ -173,10 +198,9 @@ int test(Network *net, double *image) {
     outputs[i] = calloc(net->hidden[i - 1].nnodes, sizeof(double));
   }
 
-  forward(&net->hidden[0], image, outputs[1]);
+  forward(&net->hidden[0], image, outputs[1], 0);
   for (int i = 1; i < NUMLAYERS; i++) {
-    forward(&net->hidden[i], outputs[i],
-            outputs[i + 1]); // forward prop
+    forward(&net->hidden[i], outputs[i], outputs[i + 1], 0); // forward prop
   }
 
   for (int i = 0; i < 10; i++) {
@@ -307,8 +331,8 @@ int main() {
   Network net;
 
   initLayer(&net.hidden[0], NULL, 16); // first layer
-  for (int i = 1; i < NUMLAYERS; i++)
-    initLayer(&net.hidden[i], &net.hidden[i - 1], 16);
+  initLayer(&net.hidden[1], &net.hidden[0], 16);
+  initLayer(&net.hidden[2], &net.hidden[1], 10);
   /*
   | ||
   || |_
@@ -364,6 +388,7 @@ int main() {
       rightArr[i] = res;
     }
   }
+  printf("%d\n", numCorrect);
   printf("%lf\n", learningRate);
   size_t jsonSize = 200000; // yuck
   // global
