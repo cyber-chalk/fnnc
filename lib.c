@@ -8,11 +8,10 @@
 #include <time.h>
 #define relu(x) ((x) > 0 ? (x) : 0)
 #define relu_derivative(x) (x > 0) ? 1 : 0
-#define BATCH_SIZE 64 // change if not running on chromebook
-#define NUMLAYERS 3   // not including output layer
+#define BATCH_SIZE 64
+#define NUMLAYERS 3 // not including output layer
 #define MOMENTUM 0.9
 #define epochNum 1
-// #define learningRate 0.0005
 double learningRate = 0.0005;
 char *jsonC;
 
@@ -36,6 +35,7 @@ double softmax(double x, double *Niz, int Iter) {
   return (expo(x)) / Sum;
 }
 
+// unused
 void apply_relu_derivative(double *gradients, double *outputs, int numNodes) {
   for (int i = 0; i < numNodes; i++)
     gradients[i] *= (outputs[i] > 0) ? 1.0 : 0.0;
@@ -81,22 +81,6 @@ void forward(Layer *layer, double *input, double *output, int applyRelu) {
   for (int i = 0; i < layer->nnodes; i++) {
     output[i] = layer->biases[i];
   }
-
-  /*for (int i = 0; i < layer->nnodes; i++) {*/
-  /*  for (int j = 0; j < inputSize; j++) {*/
-  /*    output[i] += input[j] * layer->weights[i * inputSize + j];*/
-  /*  }*/
-  /*  if (applyRelu)*/
-  /*    output[i] = relu(output[i]);*/
-  /*}*/
-
-  /*for (int i = 0; i < layer->nnodes; i++) {*/
-  /*  for (int j = 0; j < inputSize; j++) {*/
-  /*    output[i] += input[j] * layer->weights[i * inputSize + j];*/
-  /*  }*/
-  /*  if (applyRelu)*/
-  /*    output[i] = relu(output[i]);*/
-  /*}*/
   for (int j = 0; j < inputSize; j++) {
     for (int i = 0; i < layer->nnodes; i++) {
       output[i] += input[j] * layer->weights[j * layer->nnodes + i];
@@ -127,7 +111,6 @@ void back(Layer *layer, double *input, double *dOutput, double *dInput,
     for (int i = 0; i < layer->nnodes; i++) {
       double grad = dOutput[i] * in_j;
       momentumRow[i] = MOMENTUM * momentumRow[i] + learningRate * grad;
-      // weightRow[i] -= momentumRow[i];
       // Update weights
       if (dInput)
         dInput[j] += dOutput[i] * weightRow[i];
@@ -159,27 +142,13 @@ double *train(Network *net, double *image, int label, double learningRate) {
   forward(&net->hidden[2], outputs[2], finalOutput, 0);
 
   for (int i = 0; i < 10; i++) {
-    // finalOutput[i] = softmax(finalOutput[i], finalOutput, 10);
-    // softmax(outputs[NUMLAYERS][i], outputs[NUMLAYERS], 10);
+    // finalOutput[i] = softmax(finalOutput[i], finalOutput, 10); this kinda
+    // sucks
     gradients[3][i] = finalOutput[i] - (i == label);
   }
-
   // back propogates backward
-  // apply_relu_derivative(gradients[3], finalOutput, net->hidden[2].nnodes);
   back(&net->hidden[2], outputs[2], gradients[3], gradients[2], learningRate);
-
-  // apply_relu_derivative(gradients[2], outputs[2], net->hidden[1].nnodes);
   back(&net->hidden[1], outputs[1], gradients[2], gradients[1], learningRate);
-  /*for (int i = 2; i >= 1; i--) {*/
-  /*  for (int j = 0; j < net->hidden[i].nnodes; j++) {*/
-  /*    gradients[i][j] *=*/
-  /*        relu_derivative(outputs[i][j]); // Apply ReLU derivative*/
-  /*  }*/
-  /*  back(&net->hidden[i], outputs[i], gradients[i + 1], gradients[i],*/
-  /*       learningRate);*/
-  /*  printf(" %d\n", i);*/
-  /*}*/
-  // apply_relu_derivative(gradients[1], outputs[1], net->hidden[0].nnodes);
   back(&net->hidden[0], image, gradients[1], NULL, learningRate);
 
   free(gradients[1]);
@@ -265,7 +234,6 @@ void printNetworkSummary(Network *net) {
 
     // Display a few sample weights for the first node
     printf("  Sample Weights for Node 0: ");
-    // int ninputs = layer->prevLayer ? layer->prevLayer->nnodes : 0;
     for (int k = 0; k < 3; k++) { // limit to 3 weights
       printf("%.3f ", layer->weights[k]);
     }
@@ -356,11 +324,8 @@ int main() {
           shuffle(images, labels, batchSize);
 
         double *output = train(&net, images[i], labels[i], learningRate);
-        /*for (int i = 0; i < 10; i++)*/
-        /*  printf("%lf \n", output[i]);*/
         double safeOutput = fmax(output[labels[i]], 1e-10);
         loss += -logf(safeOutput);
-        /*loss += -logf(output[labels[i]] + 1e-10); // cross entropy loss*/
         free(output);
       }
     }
